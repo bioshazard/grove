@@ -20,6 +20,7 @@ import {
   type TraceSpan
 } from './src/parser.js';
 import { evalCode, evalSymbol, evalExpression, insertCapturedTraces, createReplSession, loadSymbolsIntoRepl, replCallSymbol, replUpdateSymbol, replWriteback, type ReplSession } from './src/repl.js';
+import { swarm, findSwarmTargets, type SwarmTransformation } from './src/swarm.js';
 import fs from 'fs';
 import path from 'path';
 
@@ -339,6 +340,60 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['symbolName'],
         },
       },
+      {
+        name: 'swarm_find_targets',
+        description: 'Find all targets matching swarm criteria (dry run)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            nodeKinds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Node kinds to match (e.g., FunctionDeclaration)',
+            },
+            filePattern: {
+              type: 'string',
+              description: 'Regex pattern for file paths',
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'swarm_execute',
+        description: 'Execute a transformation across multiple files atomically (Phase 5)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            transformPattern: {
+              type: 'string',
+              description: 'Regex pattern to match in source code',
+            },
+            transformReplacement: {
+              type: 'string',
+              description: 'Replacement string (supports $1, $2, etc. for capture groups)',
+            },
+            nodeKinds: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Node kinds to limit transformation to',
+            },
+            filePattern: {
+              type: 'string',
+              description: 'Regex pattern for file paths to transform',
+            },
+            dryRun: {
+              type: 'boolean',
+              description: 'If true, only find targets without modifying',
+            },
+            trackVersions: {
+              type: 'boolean',
+              description: 'Track symbol version changes',
+            },
+          },
+          required: ['transformPattern', 'transformReplacement'],
+        },
+      },
     ],
   };
 });
@@ -614,6 +669,52 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         const { symbolName } = args as { symbolName: string };
         const session = getReplSession();
         const result = replWriteback(db, session, symbolName);
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(result, null, 2) }
+          ],
+        };
+      }
+
+      case 'swarm_find_targets': {
+        const db = await getDb();
+        const { nodeKinds, filePattern } = args as { nodeKinds?: string[]; filePattern?: string };
+        
+        const transformation: SwarmTransformation = {
+          transform: (s) => s, // No-op for find targets
+          nodeKinds,
+          filePattern: filePattern ? new RegExp(filePattern) : undefined,
+        };
+        
+        const targets = findSwarmTargets(db, transformation);
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify({ targets, count: targets.length }, null, 2) }
+          ],
+        };
+      }
+
+      case 'swarm_execute': {
+        const db = await getDb();
+        const { transformPattern, transformReplacement, nodeKinds, filePattern, dryRun, trackVersions } = args as {
+          transformPattern: string;
+          transformReplacement: string;
+          nodeKinds?: string[];
+          filePattern?: string;
+          dryRun?: boolean;
+          trackVersions?: boolean;
+        };
+        
+        const transformation: SwarmTransformation = {
+          transform: (source: string) => {
+            const regex = new RegExp(transformPattern, 'g');
+            return source.replace(regex, transformReplacement);
+          },
+          nodeKinds,
+          filePattern: filePattern ? new RegExp(filePattern) : undefined,
+        };
+        
+        const result = swarm(db, transformation, { dryRun, trackVersions });
         return {
           content: [
             { type: 'text', text: JSON.stringify(result, null, 2) }
