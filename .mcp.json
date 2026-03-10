@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "grove": {
+      "command": "bun",
+      "args": ["/home/ansible/dev/grove/mcp-server.ts"]
+    }
+  }
+}
