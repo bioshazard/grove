@@ -9,17 +9,25 @@ export function createParser() {
 }
 
 export function addFile(db: GroveDatabase, filePath: string, sourceText: string): number {
-  const fileId = db.prepare(`
+  // First check if file exists
+  let existing = db.prepare('SELECT id FROM files WHERE path = ?').get(filePath) as {id: number} | undefined;
+  if (existing) {
+    // Update existing file
+    db.prepare('UPDATE files SET source = ? WHERE path = ?').run(sourceText, filePath);
+    return existing.id;
+  }
+  
+  // Insert new file
+  const result = db.prepare(`
     INSERT INTO files (path, language, source) VALUES (?, ?, ?)
-    ON CONFLICT(path) DO UPDATE SET path = excluded.path, source = excluded.source
-  `).run(filePath, 'typescript', sourceText).lastInsertRowid as number;
-
-  return fileId;
+  `).run(filePath, 'typescript', sourceText);
+  return result.lastInsertRowid as number;
 }
 
 export function clearFileNodes(db: GroveDatabase, fileId: number): void {
-  db.prepare('DELETE FROM nodes WHERE file_id = ?').run(fileId);
+  // Delete symbols first (they reference nodes), then nodes
   db.prepare('DELETE FROM symbols WHERE definition_node_id IN (SELECT id FROM nodes WHERE file_id = ?)').run(fileId);
+  db.prepare('DELETE FROM nodes WHERE file_id = ?').run(fileId);
 }
 
 interface NodeResult {
@@ -816,6 +824,8 @@ export function materialize(db: GroveDatabase, filePath: string): string {
   
   return result;
 }
+
+export * from './repl';
 
 function materializeNode(node: NodeResult, childrenMap: Map<number | null, NodeResult[]>, sourceText: string): string {
   const children = childrenMap.get(node.id) || [];

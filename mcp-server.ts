@@ -19,12 +19,14 @@ import {
   findSlowTracesWithSymbols,
   type TraceSpan
 } from './src/parser.js';
-import { evalCode, evalSymbol, evalExpression, insertCapturedTraces } from './src/repl.js';
+import { evalCode, evalSymbol, evalExpression, insertCapturedTraces, createReplSession, loadSymbolsIntoRepl, replCallSymbol, replUpdateSymbol, replWriteback, type ReplSession } from './src/repl.js';
 import fs from 'fs';
 import path from 'path';
 
 let db: Database | null = null;
 const DB_PATH = '/tmp/grove-mcp.db';
+
+let replSession: ReplSession | null = null;
 
 async function getDb(): Promise<Database> {
   if (!db) {
@@ -34,6 +36,13 @@ async function getDb(): Promise<Database> {
     db = await createDatabase(DB_PATH);
   }
   return db;
+}
+
+function getReplSession(): ReplSession {
+  if (!replSession) {
+    replSession = createReplSession({ sandbox: true, timeout: 5000 });
+  }
+  return replSession;
 }
 
 const server = new Server(
@@ -274,6 +283,62 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ['spans'],
         },
       },
+      {
+        name: 'repl_create_session',
+        description: 'Create a new REPL session for live development',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            sandbox: { type: 'boolean', description: 'Run in sandboxed mode (default: true)' },
+            timeout: { type: 'number', description: 'Default timeout in ms (default: 5000)' },
+          },
+          required: [],
+        },
+      },
+      {
+        name: 'repl_load_symbols',
+        description: 'Load all symbols from the graph into the REPL session context',
+        inputSchema: {
+          type: 'object',
+          properties: {},
+        },
+      },
+      {
+        name: 'repl_call_symbol',
+        description: 'Call a symbol (function) by name with given arguments in the REPL session',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            symbolName: { type: 'string', description: 'Name of the symbol to call' },
+            args: { type: 'array', description: 'Arguments to pass to the symbol' },
+            captureTraces: { type: 'boolean', description: 'Capture execution traces' },
+          },
+          required: ['symbolName'],
+        },
+      },
+      {
+        name: 'repl_update_symbol',
+        description: 'Update a symbol in the REPL session with new code (live redefinition)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            symbolName: { type: 'string', description: 'Name of the symbol to update' },
+            newCode: { type: 'string', description: 'New source code for the symbol' },
+          },
+          required: ['symbolName', 'newCode'],
+        },
+      },
+      {
+        name: 'repl_writeback',
+        description: 'Write a modified symbol from REPL back to the graph (commit)',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            symbolName: { type: 'string', description: 'Name of the symbol to write back' },
+          },
+          required: ['symbolName'],
+        },
+      },
     ],
   };
 });
@@ -493,6 +558,65 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return {
           content: [
             { type: 'text', text: `Inserted ${ids.length} trace spans with IDs: ${JSON.stringify(ids)}` }
+          ],
+        };
+      }
+
+      case 'repl_create_session': {
+        const { sandbox, timeout } = args as { sandbox?: boolean; timeout?: number };
+        replSession = createReplSession({ sandbox: sandbox ?? true, timeout });
+        return {
+          content: [
+            { type: 'text', text: 'REPL session created' }
+          ],
+        };
+      }
+
+      case 'repl_load_symbols': {
+        const db = await getDb();
+        const session = getReplSession();
+        const result = loadSymbolsIntoRepl(db, session);
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(result, null, 2) }
+          ],
+        };
+      }
+
+      case 'repl_call_symbol': {
+        const db = await getDb();
+        const { symbolName, args: symbolArgs, captureTraces } = args as { symbolName: string; args?: unknown[]; captureTraces?: boolean };
+        const session = getReplSession();
+        const result = replCallSymbol(db, session, symbolName, symbolArgs || [], { captureTraces });
+        if (result.traces && result.traces.length > 0) {
+          insertCapturedTraces(db, result.traces);
+        }
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(result, null, 2) }
+          ],
+        };
+      }
+
+      case 'repl_update_symbol': {
+        const { symbolName, newCode } = args as { symbolName: string; newCode: string };
+        const session = getReplSession();
+        const result = replUpdateSymbol(session, symbolName, newCode);
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(result, null, 2) }
+          ],
+        };
+      }
+
+      case 'repl_writeback': {
+        const db = await getDb();
+        const { symbolName } = args as { symbolName: string };
+        const session = getReplSession();
+        const result = replWriteback(db, session, symbolName);
+        return {
+          content: [
+            { type: 'text', text: JSON.stringify(result, null, 2) }
           ],
         };
       }
