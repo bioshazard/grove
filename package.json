@@ -6,15 +6,18 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/bun": "latest",
-    "@types/sql.js": "^1.4.9"
+    "@types/sql.js": "^1.4.9",
+    "@vitest/coverage-v8": "^4.0.18",
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "typescript": "5.7.2"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
     "better-sqlite3": "^12.6.2",
     "sql.js": "^1.14.1",
-    "ts-morph": "^27.0.2"
+    "ts-morph": "^27.0.2",
+    "zod": "^4.3.6"
   }
 }
