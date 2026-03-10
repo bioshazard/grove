@@ -46,6 +46,7 @@ export function captureTraces<T>(fn: (startSpan: (name: string, symbolId?: numbe
       symbolId,
     };
     traceStack.push(span);
+    captured.push(span);
     return span;
   }
 
@@ -94,28 +95,12 @@ export function evalCode(
     
     if (shouldCaptureTraces) {
       const captured = captureTraces((startSpan, endSpan) => {
-        const wrappedCode = `
-          (function(startSpan, endSpan) {
-            ${code}
-            return typeof __result !== 'undefined' ? __result : lastValue;
-          })
-        `;
-        const func = new Function('startSpan', 'endSpan', wrappedCode);
-        result = func(startSpan, endSpan);
-        return result;
+        return eval(code);
       });
       result = captured.result;
       traces.push(...captured.traces);
     } else {
-      const wrappedCode = `
-        (function() {
-          var lastValue;
-          ${code.replace(/;/g, '; lastValue = $&').replace(/lastValue; lastValue/g, 'lastValue')}
-          return typeof __result !== 'undefined' ? __result : lastValue;
-        })
-      `;
-      const func = new Function(wrappedCode);
-      result = func();
+      result = eval(code);
     }
     
     return {
@@ -132,6 +117,30 @@ export function evalCode(
       durationMs: Date.now() - startTime,
     };
   }
+}
+
+function stripTypeScriptAnnotations(code: string): string {
+  let result = code;
+  
+  // Remove return type annotation: ): Type{ -> ){
+  result = result.replace(/\)\s*:\s*\{/, '){');
+  // Remove simple return type: ): number -> )
+  result = result.replace(/\)\s*:\s*\w+/g, ')');
+  
+  // Remove parameter type annotations
+  result = result.replace(/([^:,=]+):\s*([^,)]+)/g, function(m, p1, p2) {
+    if (/[a-zA-Z_]\w*$/.test(p1.trim()) && /^[{a-zA-Z]/.test(p2)) {
+      return p1;
+    }
+    return m;
+  });
+  
+  // Remove const/let/var type annotations
+  result = result.replace(/\bconst\s+\w+\s*:\s*/g, 'const ');
+  result = result.replace(/\blet\s+\w+\s*:\s*/g, 'let ');
+  result = result.replace(/\bvar\s+\w+\s*:\s*/g, 'var ');
+  
+  return result;
 }
 
 export function evalSymbol(
@@ -169,7 +178,6 @@ export function evalSymbol(
   }
   
   const source = node.source;
-  const lines = source.split('\n');
   
   const funcStartQuery = db.prepare(`
     SELECT start, end FROM nodes WHERE id = ?
@@ -184,27 +192,18 @@ export function evalSymbol(
     };
   }
   
-  const funcStartLine = (() => {
-    let line = 0;
-    let pos = 0;
-    while (pos < funcNode.start && pos < source.length) {
-      if (source[pos] === '\n') line++;
-      pos++;
-    }
-    return line + 1;
-  })();
-  
   const funcText = source.substring(funcNode.start, funcNode.end);
+  const jsFuncText = stripTypeScriptAnnotations(funcText);
   
   const argValues = args.map(arg => {
-    if (arg instanceof Function) {
+    if (typeof arg === 'function') {
       return arg.toString();
     }
     return JSON.stringify(arg);
   }).join(', ');
   
-  let evalCode = `
-${source}
+  const evalCode = `
+${jsFuncText}
 
 __result = ${symbolName}(${argValues});
   `;
@@ -216,19 +215,21 @@ __result = ${symbolName}(${argValues});
     let result: unknown;
     
     if (options.captureTraces !== false) {
-      const captured = captureTraces(() => {
+      const captured = captureTraces((startSpan, endSpan) => {
         const func = new Function('startSpan', 'endSpan', `
 ${evalCode}
           return typeof __result !== 'undefined' ? __result : undefined;
         `);
-        result = func(startSpan, endSpan);
+        return func(startSpan, endSpan);
       });
       result = captured.result;
       traces.push(...captured.traces);
     } else {
-      const func = new Function(evalCode);
-      func();
-      result = (globalThis as any).__result;
+      const func = new Function(`
+${evalCode}
+        return typeof __result !== 'undefined' ? __result : undefined;
+      `);
+      result = func();
     }
     
     if (options.captureTraces !== false && traces.length > 0) {
@@ -264,21 +265,21 @@ export function evalExpression(
   try {
     let result: unknown;
     
-    const contextVars = context ? Object.entries(context).map(([k, v]) => `const ${k} = ${JSON.stringify(v)};`).join('\n') : '';
+    const contextVars = context ? Object.entries(context).map(([k, v]) => `var ${k} = ${JSON.stringify(v)};`).join('\n') : '';
     
     if (options.captureTraces !== false) {
-      const captured = captureTraces(() => {
+      const captured = captureTraces((startSpan, endSpan) => {
         const func = new Function('startSpan', 'endSpan', `
 ${contextVars}
-          ${expression}
-          return typeof __result !== 'undefined' ? __result : undefined;
+          var __result = ${expression};
+          return __result;
         `);
-        result = func(startSpan, endSpan);
+        return func(startSpan, endSpan);
       });
       result = captured.result;
       traces.push(...captured.traces);
     } else {
-      const func = new Function(contextVars + '\n' + expression);
+      const func = new Function(contextVars + '\n' + 'return ' + expression);
       result = func();
     }
     
