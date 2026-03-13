@@ -8,6 +8,9 @@ export interface PreCommitOptions {
   workDir?: string;
   outputDir?: string;
   verbose?: boolean;
+  selective?: boolean;
+  changedFiles?: string[];
+  runTests?: boolean;
 }
 
 export interface ValidationResult {
@@ -39,6 +42,9 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
   const outputDir = options.outputDir || path.join(workDir, '.git', 'worktree');
   
   const verbose = options.verbose || false;
+  const selective = options.selective || false;
+  const changedFiles = options.changedFiles || [];
+  const runTests = options.runTests || process.env.RUN_PRECOMMIT_TESTS === 'true';
   
   if (verbose) {
     console.log(`[pre-commit] Starting validation...`);
@@ -142,9 +148,19 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
     fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
   }
 
+  // Determine which files to materialize
+  let filesToMaterialize = files;
+  if (selective && changedFiles.length > 0) {
+    const changedSet = new Set(changedFiles);
+    filesToMaterialize = files.filter(f => changedSet.has(f.path));
+    if (verbose) {
+      console.log(`[pre-commit] Selective mode: materializing ${filesToMaterialize.length} of ${files.length} files`);
+    }
+  }
+
   // Materialize all files to disk
   let materializedCount = 0;
-  for (const file of files) {
+  for (const file of filesToMaterialize) {
     try {
       const sourceText = materialize(db, file.path);
       if (!sourceText) {
@@ -199,7 +215,7 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
     }
   }
 
-  // Run typecheck if available
+  // Run typecheck if available - run against workDir to check the whole project
   const typecheckScript = scripts.typecheck || scripts['type-check'];
   if (typecheckScript) {
     if (verbose) {
@@ -208,7 +224,8 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
     
     const typecheckResult = await runValidationCommand(
       extractBunCommand(typecheckScript),
-      workDir
+      workDir,
+      30000 // 30s timeout for typecheck
     );
     
     if (!typecheckResult.success) {
@@ -219,14 +236,15 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
       });
     }
   } else {
-    // Fallback to tsc directly
+    // Fallback to tsc directly - run against workDir to check the whole project
     if (verbose) {
       console.log(`[pre-commit] Running tsc --noEmit`);
     }
     
     const tscResult = await runValidationCommand(
       ['tsc', ['--noEmit']],
-      workDir
+      workDir,
+      30000 // 30s timeout for tsc
     );
     
     if (!tscResult.success && tscResult.code !== 127) { // 127 = command not found
@@ -238,7 +256,7 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
     }
   }
 
-  // Run lint if available
+  // Run lint if available - run against workDir to check the whole project
   const lintScript = scripts.lint;
   if (lintScript) {
     if (verbose) {
@@ -247,7 +265,8 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
     
     const lintResult = await runValidationCommand(
       extractBunCommand(lintScript),
-      workDir
+      workDir,
+      30000 // 30s timeout for lint
     );
     
     if (!lintResult.success) {
@@ -261,7 +280,7 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
 
   // Run tests if available (optional, configurable)
   const testScript = scripts.test;
-  if (testScript && process.env.RUN_PRECOMMIT_TESTS === 'true') {
+  if (testScript && runTests) {
     if (verbose) {
       console.log(`[pre-commit] Running tests: ${testScript}`);
     }
@@ -269,7 +288,7 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
     const testResult = await runValidationCommand(
       extractBunCommand(testScript),
       workDir,
-      30000 // 30s timeout for tests
+      60000 // 60s timeout for tests
     );
     
     if (!testResult.success) {
