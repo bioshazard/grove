@@ -44,17 +44,11 @@ export function findSwarmTargets(
 ): SwarmTarget[] {
   const targets: SwarmTarget[] = [];
   
-  // Get all files
-  const files = db.prepare(`
-    SELECT id, path, source FROM files
-    ${transformation.filePattern ? 'WHERE path REGEXP ?' : ''}
-  `);
-  
-  let fileRows;
+  // Get all files, filter by pattern in JS (sql.js lacks REGEXP support)
+  const files = db.prepare(`SELECT id, path, source FROM files`);
+  let fileRows = files.all() as Array<{id: number; path: string; source: string}>;
   if (transformation.filePattern) {
-    fileRows = files.all(transformation.filePattern.source) as Array<{id: number; path: string; source: string}>;
-  } else {
-    fileRows = files.all() as Array<{id: number; path: string; source: string}>;
+    fileRows = fileRows.filter(f => transformation.filePattern!.test(f.path));
   }
   
   for (const file of fileRows) {

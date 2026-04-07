@@ -122,6 +122,9 @@ export function evalCode(
 function stripTypeScriptAnnotations(code: string): string {
   let result = code;
   
+  // Remove export keyword from declarations
+  result = result.replace(/^export\s+/gm, '');
+  
   // Remove return type annotation: ): Type { -> ) {
   result = result.replace(/\)\s*:\s*\w+\s*(\{)/g, '){');
   
