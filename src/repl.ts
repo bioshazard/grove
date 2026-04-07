@@ -1,5 +1,5 @@
 import type { Database } from './db';
-import { symbolQuery, resolveSymbolId } from './parser';
+import { symbolQuery, resolveSymbolId, hydrateSource } from './parser';
 
 export interface EvalOptions {
   timeout?: number;
@@ -535,9 +535,8 @@ export function replWriteback(
     
     const newSource = symbol.source.substring(0, symbol.start) + newCode + symbol.source.substring(symbol.end);
     
-    db.prepare(`
-      UPDATE files SET source = ? WHERE path = ?
-    `).run(newSource, symbol.path);
+    // Re-hydrate the file so nodes/symbols reflect updated positions
+    hydrateSource(db, symbol.path, newSource);
     
     db.prepare(`
       UPDATE symbols SET version = version + 1 WHERE name = ?

@@ -135,12 +135,11 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
       compilerOptions: {
         target: 'ES2020',
         module: 'ESNext',
-        moduleResolution: 'node',
+        moduleResolution: 'bundler',
         strict: true,
         skipLibCheck: true,
         esModuleInterop: true,
         resolveJsonModule: true,
-        isolatedModules: true
       },
       include: ['**/*.ts'],
       exclude: ['node_modules']
@@ -236,14 +235,14 @@ export async function preCommitHook(options: PreCommitOptions = {}): Promise<Val
       });
     }
   } else {
-    // Fallback to tsc directly - run against workDir to check the whole project
+    // Fallback to tsc directly - run against outputDir where files are materialized
     if (verbose) {
       console.log(`[pre-commit] Running tsc --noEmit`);
     }
     
     const tscResult = await runValidationCommand(
-      ['tsc', ['--noEmit']],
-      workDir,
+      ['bunx', ['tsc', '--noEmit']],
+      outputDir,
       30000 // 30s timeout for tsc
     );
     
