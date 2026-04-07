@@ -422,20 +422,19 @@ export function joinTracesWithSymbols(
       s.kind as symbolKind,
       f.path as filePath,
       COUNT(t.id) as traceCount,
-      AVG(json_extract(t.attributes, '$.duration_ms')) as avgDurationMs,
-      MAX(json_extract(t.attributes, '$.duration_ms')) as maxDurationMs,
-      MIN(json_extract(t.attributes, '$.duration_ms')) as minDurationMs
+      AVG(t.end_time - t.start_time) as avgDurationMs,
+      MAX(t.end_time - t.start_time) as maxDurationMs,
+      MIN(t.end_time - t.start_time) as minDurationMs
     FROM symbols s
     JOIN nodes n ON s.definition_node_id = n.id
     JOIN files f ON n.file_id = f.id
     JOIN traces t ON t.symbol_id = s.id
-    WHERE json_extract(t.attributes, '$.duration_ms') IS NOT NULL
   `;
   
   const params: unknown[] = [];
   
   if (minDurationMs !== undefined) {
-    query += ` AND json_extract(t.attributes, '$.duration_ms') >= ?`;
+    query += ` WHERE (t.end_time - t.start_time) >= ?`;
     params.push(minDurationMs);
   }
   
@@ -467,7 +466,7 @@ export function findSlowTracesWithSymbols(
       t.id as traceId,
       t.span_id as spanId,
       t.name,
-      json_extract(t.attributes, '$.duration_ms') as durationMs,
+      (t.end_time - t.start_time) as durationMs,
       s.name as symbolName,
       s.kind as symbolKind,
       f.path as filePath
@@ -475,7 +474,7 @@ export function findSlowTracesWithSymbols(
     LEFT JOIN symbols s ON t.symbol_id = s.id
     LEFT JOIN nodes n ON s.definition_node_id = n.id
     LEFT JOIN files f ON n.file_id = f.id
-    WHERE json_extract(t.attributes, '$.duration_ms') >= ?
+    WHERE (t.end_time - t.start_time) >= ?
     ORDER BY durationMs DESC
     LIMIT ?
   `).all(minDurationMs, limit) as SlowTraceWithSymbol[];

@@ -503,7 +503,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'insert_traces': {
         const db = await getDb();
         const { spans } = args as { spans: TraceSpan[] };
-        const ids = insertTraces(db, spans);
+        // Auto-resolve symbol_id from span name when not provided
+        const linkedSpans = spans.map(span => {
+          if (span.symbolId == null) {
+            const symbolId = resolveSymbolId(db, span.name);
+            return symbolId != null ? { ...span, symbolId } : span;
+          }
+          return span;
+        });
+        const ids = insertTraces(db, linkedSpans);
         return {
           content: [
             { type: 'text', text: `Inserted ${ids.length} trace spans with IDs: ${JSON.stringify(ids)}` }
