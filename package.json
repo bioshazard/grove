@@ -1,29 +1,27 @@
 {
   "name": "grove",
-  "module": "index.ts",
-  "type": "module",
+  "version": "0.2.0",
   "private": true,
+  "type": "module",
+  "bin": {
+    "grove": "./index.ts"
+  },
   "scripts": {
-    "typecheck": "bun run tsc --noEmit",
-    "lint": "bun run eslint . --ext .ts,.tsx",
-    "pre-commit": "bun run src/pre-commit.ts"
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "@types/bun": "latest",
-    "@types/sql.js": "^1.4.9",
-    "@vitest/coverage-v8": "^4.0.18",
-    "vitest": "^4.0.18"
-  },
-  "peerDependencies": {
-    "typescript": "^5.9.3"
+    "test": "bun test",
+    "test:watch": "bun test --watch",
+    "typecheck": "tsc --noEmit",
+    "index": "bun index.ts index",
+    "mcp": "bun mcp-server.ts",
+    "benchmark:zod": "bun experiments/zod-benchmark/benchmark.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
-    "better-sqlite3": "^12.6.2",
-    "puppeteer": "^24.39.0",
     "sql.js": "^1.14.1",
     "ts-morph": "^27.0.2",
-    "zod": "^4.3.6"
+    "typescript": "^5.9.3"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/sql.js": "^1.4.9"
   }
 }

@@ -1,0 +1,9 @@
+{
+  "servers": {
+    "grove": {
+      "type": "stdio",
+      "command": "bun",
+      "args": ["run", "${workspaceFolder}/mcp-server.ts"]
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "mcpServers": {
     "grove": {
       "command": "bun",
-      "args": ["/home/ansible/dev/grove/mcp-server.ts"]
+      "args": ["run", "mcp-server.ts"]
     }
   }
 }
