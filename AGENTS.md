@@ -17,6 +17,10 @@ Be extremely concise. Sacrifice grammar for concision.
 - `WorkspaceSession` stages whole-declaration replacements, rejects stale hashes/overlap,
   syntax-checks, then installs with rollback. Re-index after commit.
 - MCP surface intentionally small: index, symbol query/references, staged edits, traces.
+- Grove is a program-evidence mechanism, not a Goal System: callers own intent,
+  authority, evaluation, steering, terminality, and receipts.
+- The program/evidence graph is a logical, disposable projection. Do not introduce a
+  graph-database commitment or store product ontology as Grove authority.
 
 ### Gates
 
@@ -24,7 +28,9 @@ Be extremely concise. Sacrifice grammar for concision.
 - `bun run typecheck`
 - `bun run benchmark:zod`
 - Zod baseline: 12,072 LOC; 99.8% precision, 99.5% recall, 5.5s index, 4.2ms query.
-- Next product experiment: small model + Grove vs larger model + raw files.
+- Next implementation experiment: external bounded-modernization Goal System using
+  Grove, project typecheck/tests, and a typed receipt.
+- Subsequent product experiment: small model + Grove vs larger model + raw files.
 
 ### Lessons
 
