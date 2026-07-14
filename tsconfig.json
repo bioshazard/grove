@@ -21,6 +21,6 @@
     "mcp-server.ts",
     "src/**/*.ts",
     "tests/**/*.ts",
-    "experiments/grove-zod-prototype/benchmark.ts"
+    "experiments/zod-benchmark/benchmark.ts"
   ]
 }

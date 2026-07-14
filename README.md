@@ -37,4 +37,4 @@ bun run benchmark:zod
 ```
 
 The Zod benchmark compares Grove and exact-word search against TypeScript semantic
-references. See [the experiment](experiments/grove-zod-prototype/README.md).
+references. See [the benchmark](experiments/zod-benchmark/README.md).

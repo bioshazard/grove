@@ -29,7 +29,7 @@ interface Score {
   returned: number;
 }
 
-const checkout = process.env.ZOD_DIR ?? `${tmpdir()}/grove-zod-navigation-prototype`;
+const checkout = process.env.ZOD_DIR ?? `${tmpdir()}/grove-zod-navigation-benchmark`;
 if (!existsSync(checkout)) {
   const clone = Bun.spawnSync([
     "git",
@@ -113,7 +113,7 @@ const tasks: Task[] = [
 ];
 const semanticMs = performance.now() - semanticStarted;
 
-const dbPath = `${tmpdir()}/grove-zod-navigation-prototype.db`;
+const dbPath = `${tmpdir()}/grove-zod-navigation-benchmark.db`;
 rmSync(dbPath, { force: true });
 const db = await createDatabase(dbPath);
 const indexResult = indexWorkspace(db, scope, fileList);

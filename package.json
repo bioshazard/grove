@@ -12,7 +12,7 @@
     "typecheck": "tsc --noEmit",
     "index": "bun index.ts index",
     "mcp": "bun mcp-server.ts",
-    "benchmark:zod": "bun experiments/grove-zod-prototype/benchmark.ts"
+    "benchmark:zod": "bun experiments/zod-benchmark/benchmark.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",

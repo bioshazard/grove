@@ -9,10 +9,10 @@ It compares Grove and exact-word search on references to real declarations in Zo
 include precision, recall, latency, and JSON payload bytes.
 
 ```bash
-bun experiments/grove-zod-prototype/benchmark.ts
+bun experiments/zod-benchmark/benchmark.ts
 ```
 
 Set `ZOD_DIR=/path/to/zod` to use an existing checkout. Otherwise the command shallow-
-clones the official Zod repository into `/tmp/grove-zod-navigation-prototype`.
+clones the official Zod repository into `/tmp/grove-zod-navigation-benchmark`.
 
 The measured baseline and decision live in `NOTES.md`.
